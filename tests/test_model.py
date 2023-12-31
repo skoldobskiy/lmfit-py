@@ -202,7 +202,7 @@ def test_Model_get_state(gmodel):
 
     assert isinstance(out, tuple)
     assert out[1] == out[2] is None
-    assert (out[0][1] is not None) == lmfit.jsonutils.HAS_DILL
+    assert (out[0][1] is not None)
 
     assert out[0][0] == 'gaussian'
     assert out[0][2:] == ('gaussian', '', ['x'],

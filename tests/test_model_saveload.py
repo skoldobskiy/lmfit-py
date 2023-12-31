@@ -9,7 +9,6 @@ from numpy.testing import assert_allclose
 import pytest
 
 from lmfit import Parameters
-import lmfit.jsonutils
 from lmfit.lineshapes import gaussian, lorentzian
 from lmfit.model import (Model, ModelResult, load_model, load_modelresult,
                          save_model, save_modelresult)
@@ -89,14 +88,8 @@ def check_fit_results(result):
     assert_allclose(pars['g2_height'], 72.045593, rtol=1.0e-5)
 
 
-@pytest.mark.parametrize("dill", [False, True])
-def test_save_load_model(dill):
-    """Save/load Model with/without dill."""
-    if dill:
-        pytest.importorskip("dill")
-    else:
-        lmfit.jsonutils.HAS_DILL = False
-
+def test_save_load_model():
+    """Save/load Model, now always asserting that dill is available."""
     # create/save Model and perform some tests
     model, _pars = create_model_params(x, y)
     save_model(model, SAVE_MODEL)
@@ -128,14 +121,8 @@ def test_save_load_model(dill):
     clear_savefile(SAVE_MODEL)
 
 
-@pytest.mark.parametrize("dill", [False, True])
-def test_save_load_modelresult(dill):
-    """Save/load ModelResult with/without dill."""
-    if dill:
-        pytest.importorskip("dill")
-    else:
-        lmfit.jsonutils.HAS_DILL = False
-
+def test_save_load_modelresult():
+    """Save/load ModelResult now always asserting that dill is available."""
     # create model, perform fit, save ModelResult and perform some tests
     model, params = create_model_params(x, y)
     result = model.fit(y, params, x=x)
@@ -147,7 +134,7 @@ def test_save_load_modelresult(dill):
     text = ''
     with open(SAVE_MODELRESULT) as fh:
         text = fh.read()
-    assert 12000 < len(text) < 60000  # depending on whether dill is present
+    assert 12000 < len(text) < 60000
 
     # load the saved ModelResult from file and compare results
     result_saved = load_modelresult(SAVE_MODELRESULT)

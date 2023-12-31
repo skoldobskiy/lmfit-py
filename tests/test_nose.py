@@ -485,14 +485,6 @@ class CommonMinimizerTest(unittest.TestCase):
                                             is_weighted=False)
         assert out_unweighted.method == 'emcee'
 
-    def test_emcee_multiprocessing(self):
-        # test multiprocessing runs
-        raise pytest.skip("Pytest fails with multiprocessing")
-        pytest.importorskip("dill")
-        if not HAS_EMCEE:
-            return True
-        self.mini.emcee(steps=50, workers=4, nwalkers=20)
-
     def test_emcee_bounds_length(self):
         # the log-probability functions check if the parameters are
         # inside the bounds. Check that the bounds and parameters

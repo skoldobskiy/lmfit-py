@@ -16,7 +16,7 @@ import lmfit
 
 from . import Minimizer, Parameter, Parameters, lineshapes
 from .confidence import conf_interval
-from .jsonutils import HAS_DILL, decode4js, encode4js
+from .jsonutils import decode4js, encode4js
 from .minimizer import MinimizerResult
 from .printfuncs import ci_report, fit_report, fitreport_html_table
 
@@ -319,17 +319,35 @@ class Model:
         """Save a Model for serialization.
 
         Note: like the standard-ish '__getstate__' method but not really
-        useful with Pickle.
+        useful with Pickle, and only useful with dill.
+
+        This, and the companion function _buildmodel to use this serialized model
+        now supports versions of 'state'.
+
+        State Versions:
+         '1':  state is a tuple of length 9:
+               (self.func.__name__, funcdef, self._name, self._prefix,
+                self.independent_vars, self._param_root_names,
+                self.param_hints, self.nan_policy, self.opts)
+               with opts used in the version 1.2 sense
+         '2': state is a dict with a 'version' keyword, holding the
+              where state_version is the version string, and
+              state_dict is a dictionary of data
 
         """
-        funcdef = None
-        if HAS_DILL:
-            funcdef = self.func
+        funcdef = self.func
         if self.func.__name__ == '_eval':
             funcdef = self.expr
-        state = (self.func.__name__, funcdef, self._name, self._prefix,
-                 self.independent_vars, self._param_root_names,
-                 self.param_hints, self.nan_policy, self.opts)
+        state = dict(version='2',
+                     funcname=self.func.__name__,
+                     funcdef=funcdef,
+                     name=self._name,
+                     prefix=self._prefix,
+                     independent_vars=self.independent_vars,
+                     param_root_names=self._param_root_names,
+                     param_hints=self.param_hints,
+                     nan_policy=self.nan_policy,
+                     opts=self.opts)
         return (state, None, None)
 
     def _set_state(self, state, funcdefs=None):
@@ -496,18 +514,32 @@ class Model:
         # 2. modern, best-practice approach: use inspect.signature
         else:
             pos_args = []
+            f_pvars = []
+            f_ivars = []
+            f_defvals = {}
             sig = inspect.signature(self.func)
             for fnam, fpar in sig.parameters.items():
                 if fpar.kind == fpar.VAR_KEYWORD:
                     keywords_ = fnam
-                elif fpar.kind == fpar.POSITIONAL_OR_KEYWORD:
-                    if fpar.default == fpar.empty:
+                elif fpar.kind in (fpar.POSITIONAL_ONLY, fpar.POSITIONAL_OR_KEYWORD):
+                    f_defvals[fnam] = fpar.default
+                    if isinstance(fpar.default, (float, int, complex)):
+                        kw_args[fnam] = fpar.default
+                        f_pvars.append(fnam)
+                    elif fpar.default == fpar.empty:
                         pos_args.append(fnam)
+                        f_ivars.append(fnam)
                     else:
                         kw_args[fnam] = fpar.default
+                        f_ivars.append(fnam)
                 elif fpar.kind == fpar.VAR_POSITIONAL:
                     raise ValueError(f"varargs '*{fnam}' is not supported")
         # inspection done
+#         print(" Inspected saw ")
+#         print(" pars  :", f_pvars)
+#         print(" ivars :", f_ivars)
+#         print(f_defvals)
+#         print('========')
 
         self._func_haskeywords = keywords_ is not None
         self._func_allargs = pos_args + list(kw_args.keys())
@@ -519,6 +551,7 @@ class Model:
         # default independent_var = 1st argument
         if self.independent_vars is None:
             self.independent_vars = [pos_args[0]]
+            # self.independent_vars = f_ivars
 
         # default param names: all positional args
         # except independent variables
@@ -1304,8 +1337,23 @@ def _buildmodel(state, funcdefs=None):
 
     left, right, op = state
     if op is None and right is None:
-        (fname, fcndef, name, prefix, ivars, pnames,
-         phints, nan_policy, opts) = left
+        if isinstance(left, tuple) and len(left) == 9:
+            (fname, fcndef, name, prefix, ivars, pnames,
+             phints, nan_policy, opts) = left
+        elif isinstance(left, dict) and 'version' in left:
+            if left['version'] == '2':
+                fname = left.get('funcname', None)
+                fcndef = left.get('funcdef', None)
+                name = left.get('name', None)
+                prefix = left.get('prefix', None)
+                ivars = left.get('indepedendent_vars', None)
+                pnames = left.get('param_root_names', None)
+                phints = left.get('param_hints', None)
+                nan_policy = left.get('nan_policy', None)
+                opts = left.get('opts', None)
+        else:
+            raise ValueError("Cannot restore Model: unrecognized state data")
+
         if not callable(fcndef) and fname in known_funcs:
             fcndef = known_funcs[fname]
 

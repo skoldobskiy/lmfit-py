@@ -1,7 +1,5 @@
 """Module containing built-in fitting models."""
 
-import time
-
 from asteval import Interpreter, get_ast_names
 import numpy as np
 from scipy.interpolate import splev, splrep
@@ -1673,6 +1671,10 @@ class ExpressionModel(Model):
             - `'omit'` : drop missing data
 
         """
+        if 'prefix' in kws:
+            raise Warning(self.no_prefix)
+        kws["nan_policy"] = nan_policy
+
         # create ast evaluator, load custom functions
         self.asteval = Interpreter()
         for name in lineshapes.functions:
@@ -1711,23 +1713,17 @@ class ExpressionModel(Model):
             lost = ', '.join(lost)
             raise ValueError(self.idvar_notfound.format(lost, self.expr))
 
-        kws['independent_vars'] = independent_vars
-        if 'prefix' in kws:
-            raise Warning(self.no_prefix)
+        kws['independent_vars'] = self.independent_vars = independent_vars
 
         def _eval(**kwargs):
             for name, val in kwargs.items():
                 self.asteval.symtable[name] = val
-            self.asteval.start_time = time.time()
             return self.asteval.run(self.astcode)
-
-        kws["nan_policy"] = nan_policy
 
         super().__init__(_eval, **kws)
 
         # set param names here, and other things normally
         # set in _parse_params(), which will be short-circuited.
-        self.independent_vars = independent_vars
         self._func_allargs = independent_vars + param_names
         self._param_names = param_names
         self._func_haskeywords = True
@@ -1737,12 +1733,17 @@ class ExpressionModel(Model):
         """Return printable representation of ExpressionModel."""
         return f"<lmfit.ExpressionModel('{self.expr}')>"
 
+    def _reprstring(self, long=False):
+        """Return printable representation of ExpressionModel."""
+        return f"<lmfit.ExpressionModel('{self.expr}')>"
+
     def _parse_params(self):
         """Over-write ExpressionModel._parse_params with `pass`.
 
         This prevents normal parsing of function for parameter names.
 
         """
+        pass
 
 
 lmfit_models = {'Constant': ConstantModel,

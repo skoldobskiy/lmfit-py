@@ -1332,7 +1332,9 @@ def _buildmodel(state, funcdefs=None):
         fcn = getattr(lineshapes, fname, None)
         if callable(fcn):
             known_funcs[fname] = fcn
-    if funcdefs is not None:
+    if funcdefs is None:
+        funcdefs = {}
+    else:
         known_funcs.update(funcdefs)
 
     left, right, op = state

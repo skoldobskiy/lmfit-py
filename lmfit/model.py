@@ -1338,12 +1338,12 @@ def _buildmodel(state, funcdefs=None):
     left, right, op = state
     if op is None and right is None:
         if isinstance(left, tuple) and len(left) == 9:
-            (fname, fcndef, name, prefix, ivars, pnames,
+            (fname, func, name, prefix, ivars, pnames,
              phints, nan_policy, opts) = left
         elif isinstance(left, dict) and 'version' in left:
             if left['version'] == '2':
                 fname = left.get('funcname', None)
-                fcndef = left.get('funcdef', None)
+                func = left.get('funcdef', None)
                 name = left.get('name', None)
                 prefix = left.get('prefix', None)
                 ivars = left.get('indepedendent_vars', None)
@@ -1354,21 +1354,25 @@ def _buildmodel(state, funcdefs=None):
         else:
             raise ValueError("Cannot restore Model: unrecognized state data")
 
-        if not callable(fcndef) and fname in known_funcs:
-            fcndef = known_funcs[fname]
+        # if the function definition was passed in, use that!
+        if fname in funcdefs and fname != '_eval':
+            func = funcdefs[fname]
 
-        if fcndef is None:
+        if not callable(func) and fname in known_funcs:
+            func = known_funcs[fname]
+
+        if func is None:
             raise ValueError("Cannot restore Model: model function not found")
 
-        if fname == '_eval' and isinstance(fcndef, str):
+        if fname == '_eval' and isinstance(func, str):
             from .models import ExpressionModel
-            model = ExpressionModel(fcndef, name=name,
+            model = ExpressionModel(func, name=name,
                                     independent_vars=ivars,
                                     param_names=pnames,
                                     nan_policy=nan_policy, **opts)
 
         else:
-            model = Model(fcndef, name=name, prefix=prefix,
+            model = Model(func, name=name, prefix=prefix,
                           independent_vars=ivars, param_names=pnames,
                           nan_policy=nan_policy, **opts)
 

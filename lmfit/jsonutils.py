@@ -140,12 +140,16 @@ def decode4js(obj):
         except (ImportError, AttributeError):
             unpacked = False
         if not unpacked:
+            spyvers = obj.get('pyversion', '?')
+            if not pyvers == spyvers:
+                msg = f"Could not unpack dill-encoded callable '{out}', saved with Python version {spyvers}"
+                warnings.warn(msg)
+
             try:
                 out = dill.loads(b64decode(obj['value']))
             except RuntimeError:
-                msg = "Could not unpack dill-encoded callable `{0}`, saved with Python version {1}"
-                warnings.warn(msg.format(obj['__name__'],
-                                         obj['pyversion']))
+                msg = f"Could not unpack dill-encoded callable '{out}`, saved with Python version {spyvers}"
+                warnings.warn(msg)
 
     elif classname in ('Dict', 'dict'):
         out = {}

@@ -359,3 +359,26 @@ def test_modelresult_summary():
         assert val != '__INVALID__'
 
     assert len(json.dumps(summary)) > 100
+
+
+def test_load_model_versions():
+    """test multiple loading saved models from different
+    python and lmfit versions:
+
+    note that providing the model function is important - these
+    cannot be transferred between Python versions
+    """
+    def local_sine(x, amp, freq, shift):
+        return amp * np.sin(x*freq + shift)
+
+    x = np.linspace(0, 10, 101)
+
+    for fname in ('saved_models/sinemodel_py310_lm122.sav',
+                  'saved_models/sinemodel_py311_lm122.sav',
+                  'saved_models/sinemodel_py312_lm122.sav'):
+        mod = load_model(fname, funcdefs={'mysine': local_sine})
+
+        pars = mod.make_params(amp=2, freq=0.8, shift=0.200)
+        y = mod.eval(pars, x=x)
+        assert y.max() > 1.55
+        assert y.min() < -1.55

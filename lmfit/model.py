@@ -297,6 +297,7 @@ class Model:
         self.param_hints = {}
         self._param_names = []
         self._parse_params()
+
         if self.independent_vars is None:
             self.independent_vars = []
         if name is None and hasattr(self.func, '__name__'):
@@ -513,6 +514,7 @@ class Model:
                 kw_args[name] = defval
         # 2. modern, best-practice approach: use inspect.signature
         else:
+            allargs = []
             pos_args = []
             f_pvars = []
             f_ivars = []
@@ -522,47 +524,57 @@ class Model:
                 if fpar.kind == fpar.VAR_KEYWORD:
                     keywords_ = fnam
                 elif fpar.kind in (fpar.POSITIONAL_ONLY, fpar.POSITIONAL_OR_KEYWORD):
+                    allargs.append(fnam)
                     f_defvals[fnam] = fpar.default
                     if isinstance(fpar.default, (float, int, complex)):
                         kw_args[fnam] = fpar.default
                         f_pvars.append(fnam)
                     elif fpar.default == fpar.empty:
                         pos_args.append(fnam)
-                        f_ivars.append(fnam)
                     else:
                         kw_args[fnam] = fpar.default
                         f_ivars.append(fnam)
                 elif fpar.kind == fpar.VAR_POSITIONAL:
                     raise ValueError(f"varargs '*{fnam}' is not supported")
         # inspection done
-#         print(" Inspected saw ")
-#         print(" pars  :", f_pvars)
-#         print(" ivars :", f_ivars)
-#         print(f_defvals)
-#         print('========')
 
         self._func_haskeywords = keywords_ is not None
-        self._func_allargs = pos_args + list(kw_args.keys())
-        allargs = self._func_allargs
+        self._func_allargs = allargs[:]
+        for key in kw_args:
+            if key not in self._func_allargs:
+                self._func_allargs.append(key)
 
         if len(allargs) == 0 and keywords_ is not None:
             return
 
+        self.ivar_defvals = {}
         # default independent_var = 1st argument
         if self.independent_vars is None:
-            self.independent_vars = [pos_args[0]]
-            # self.independent_vars = f_ivars
+            self.independent_vars = [pos_args.pop(0)]
+
+            # default values for independent variables
+            for vnam in f_ivars:
+                dval = f_defvals[vnam]
+                if vnam in self.opts:
+                    dval = self.opts[vnam]
+                self.ivar_defvals[vnam] = dval
+                if vnam not in self.independent_vars:
+                    self.independent_vars.append(vnam)
 
         # default param names: all positional args
         # except independent variables
         self.def_vals = {}
         might_be_param = []
         if self._param_root_names is None:
-            self._param_root_names = pos_args[:]
+            self._param_root_names = []
+            for pname in pos_args:
+                if pname not in self.independent_vars:
+                    self._param_root_names.append(pname)
             for key, val in kw_args.items():
                 if (not isinstance(val, bool) and
                         isinstance(val, (float, int))):
-                    self._param_root_names.append(key)
+                    if key not in self._param_root_names:
+                        self._param_root_names.append(key)
                     self.def_vals[key] = val
                 elif val is None:
                     might_be_param.append(key)
@@ -583,6 +595,7 @@ class Model:
         if self._prefix is None:
             self._prefix = ''
         names = [f"{self._prefix}{pname}" for pname in self._param_root_names]
+
         # check variables names for validity
         # The implicit magic in fit() requires us to disallow some
         fname = self.func.__name__
@@ -875,8 +888,9 @@ class Model:
         if kwargs is None:
             kwargs = {}
         out = {}
-        out.update(self.opts)
-
+        for key, val in self.ivar_defvals.items():
+            if val is not inspect._empty:
+                out[key] = val
         # 0: if a keyword argument is going to overwrite a parameter,
         #    save that value so it can be restored before returning
         saved_values = {}
@@ -905,10 +919,12 @@ class Model:
                         out[name] = params[fullname].value
 
         # 3. kwargs might directly update function arguments
+        validnames = self.independent_vars[:]
+        validnames.extend(self._func_allargs)
         for name, val in kwargs.items():
             if strip:
                 name = self._strip_prefix(name)
-            if name in self._func_allargs or self._func_haskeywords:
+            if name in validnames or self._func_haskeywords:
                 out[name] = val
 
         # 4. finally, reset any values that have overwritten parameter values

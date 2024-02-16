@@ -1,4 +1,5 @@
 """Module containing built-in fitting models."""
+import inspect
 
 from asteval import Interpreter, get_ast_names
 import numpy as np
@@ -1727,6 +1728,7 @@ class ExpressionModel(Model):
         self._func_allargs = independent_vars + param_names
         self._param_names = param_names
         self._func_haskeywords = True
+        self.ivar_defvals = {'x': inspect._empty}
         self.def_vals = {}
 
     def __repr__(self):
